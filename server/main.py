@@ -1,8 +1,12 @@
+from flask import Flask, request, Response
+from flask_cors import CORS
+
 import pandas as pd
 
 from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
 from nltk.stem import WordNetLemmatizer
+
 import string
 import random
 
@@ -18,7 +22,7 @@ def load_data(file_name):
     cards = pd.read_json(file_name, orient='records')
     cards = pd.json_normalize(cards['cards'])
 
-    # cards['number'] = cards['number'].astype('int')
+    cards['number'] = cards['number'].astype('int')
     return cards
 
 
@@ -35,7 +39,8 @@ def clean_data(text):
     1) Removes digits;
     2) Removes punctuations
     3) splits text for:
-        a) Stemming
+        a) lemmatizing
+        b) Stemming
         b) Stop words removal
     4) Joins tokens
     5) Double-checks the spaces then returns text in form of a joined string
@@ -77,8 +82,7 @@ def getSimilarity(cards, query):
     print(cards_matrix.shape)
     print(query_matrix.shape)
 
-    feature_names = vectorizer.get_feature_names_out()
-
+    # feature_names = vectorizer.get_feature_names_out()
     # print(feature_names)
 
     # cosine similarity between the matrices (vectors)
@@ -88,45 +92,69 @@ def getSimilarity(cards, query):
 
 
 def get_random_words(text):
+    '''
+    Gets random words from the text
+    '''
     tokens = text.split()
-
     # print random string
     randomWords = random.choice(tokens)
+    return randomWords
+
+
+# initalizing app with cors rules
+app = Flask(__name__)
+CORS(app, resources={r"/*": {"origins": "*",
+     "allow_headers": "*", "expose_headers": "*"}})
+
+
+@ app.route('/cards', methods=["GET"])
+def cards():
+    """
+    Function for handeling the Route's HTTP get requests
+    returns following responses to client:
+        a) List of random words if query after cleaning is empty
+        b) List of matching cards if query has matches
+        c) List of random words if query has no matches
+    """
+
+    query_client = request.args.get('query', '')
+    cards = load_data('../data/tarot-images.json')
+    cards['soup'] = cards.apply(create_soup, axis=1)
+    cards['soup'] = cards['soup'].apply(lambda x: clean_data(x))
+
+    # Apply text processing on the query
+    cleaned_query = clean_data(query_client)
+
+    # Check if the string after cleaning is not empty otherwise return random words
+    if not cleaned_query:
+        # Retun a random list of words for the user
+        cards["random_words"] = cards['soup'].apply(
+            lambda x: get_random_words(x))
+        response = cards["random_words"].head(
+            5).to_json(orient="records", indent=4)
+        return Response(response, status=200, mimetype='application/json')
+
+    # checking similarity (matching scores)
+    else:
+        # create column with the similarity scores, then sort it in desnding order
+        cards['similarity_scores'] = getSimilarity(
+            cards['soup'], cleaned_query)
+        cards = cards.sort_values(["similarity_scores"], ascending=False)
+
+        # check if there are scors
+        for score in cards["similarity_scores"].head(3):
+            # Retun the top 3 matching cards for the user
+            if score != 0.000000:
+                response = cards.head(3).to_json(orient="records", indent=4)
+                return Response(response, status=200, mimetype='application/json')
+            else:
+                # Retun a random list of words for the user
+                cards["random_words"] = cards['soup'].apply(
+                    lambda x: get_random_words(x))
+                response = cards["random_words"].head(
+                    5).to_json(orient="records", indent=4)
+                return Response(response, status=200, mimetype='application/json')
 
 
 if __name__ == "__main__":
-
-    cards = load_data('../data/tarot-images.json')
-    print(cards.info())
-    cards['soup'] = cards.apply(create_soup, axis=1)
-
-    print("-------soup--------------")
-    print(cards['soup'][8])
-
-    cards['soup'] = cards['soup'].apply(lambda x: clean_data(x))
-    print("-------cleaned_soup--------------")
-    print(cards['soup'][8])
-
-    # Apply text processing on the query
-    query = "mysterious woman secrets 32 necessary tomorrow"
-    cleaned_query = clean_data(query)
-    print("-------cleaned_query--------------")
-    print(cleaned_query)
-
-    # create column with the similarity scores
-    cards['similarity_scores'] = getSimilarity(cards['soup'], cleaned_query)
-    print(cards['similarity_scores'])
-
-    # Sort the cards in desnding order
-    cards = cards.sort_values(["similarity_scores"], ascending=False)
-    print(cards.head(10))
-
-    # check if there are scors
-    for score in cards["similarity_scores"].head(3):
-        # Retun the top 3 matching cards for the user
-        if score != 0.000000:
-            response = cards.head(3).to_json(orient="records", indent=4)
-            print(response)
-        else:
-            # Retun a random list of words for the user
-            response = get_random_words()
+    app.run(debug=True)
