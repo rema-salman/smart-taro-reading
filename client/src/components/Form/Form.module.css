@@ -1,0 +1,45 @@
+.form {
+  width: 50%;
+  font-size: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 80vh;
+  margin: 0 auto;
+}
+
+.heading {
+  text-align: center;
+  margin: 3rem 0;
+  font-weight: 900;
+  font-size: 2rem;
+}
+
+.light {
+  font-weight: 100;
+}
+
+.errorMsg {
+  font-weight: 100;
+  color: var(--red-color);
+}
+
+.input {
+  margin-bottom: 1rem;
+  padding: 1.5rem;
+}
+
+.button {
+  background-color: var(--red-color);
+  color: var(--light-grey-color);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.button:hover {
+  color: var(--light-grey-color);
+  -webkit-transform: scale(0.95);
+  -ms-transform: scale(0.95);
+  transform: scale(0.95);
+}
